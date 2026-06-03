@@ -79,3 +79,16 @@ debug = true
 opt-level = "z"
 overflow-checks = false
 lto = "fat"
+
+# Local rmk 0.8.2 with the tap-hold "enable rolls on permissive_hold /
+# hold_on_other_press" fix (rmk #743) cherry-picked. Same deps as crates.io
+# 0.8.2; only rmk/src/keyboard.rs differs.
+#
+# `vendor/rmk/` is gitignored (it's just upstream rmk 0.8.2). To recreate it
+# after a fresh clone, before building:
+#   1. cargo fetch                       # ensure rmk 0.8.2 is in the registry cache
+#   2. copy <cargo cache>/rmk-0.8.2/ -> vendor/rmk/   (and clear read-only attrs)
+#   3. git apply patches/rmk-0.8.2-743-tap-hold.patch
+# This is a stopgap; the real fix is migrating to rmk main (tracked on a branch).
+[patch.crates-io]
+rmk = { path = "vendor/rmk" }
