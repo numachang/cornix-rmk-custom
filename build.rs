@@ -56,5 +56,21 @@ fn generate_vial_config() {
     ]
     .map(|s| "#[allow(clippy::redundant_static_lifetimes)]\n".to_owned() + s.as_str())
     .join("\n");
+
+    // Force the rmk macro to re-expand whenever keyboard.toml changes. The macro
+    // reads keyboard.toml directly, but cargo does NOT track that as a source
+    // dependency, so a toml-only edit reuses the cached expansion and silently
+    // ships stale config (e.g. behavior.morse changes appearing to have no
+    // effect). config_generated.rs is `include!`d by the macro, so embedding a
+    // hash of keyboard.toml here makes any toml edit change this file and
+    // invalidate the crate, recompiling + re-expanding with the new config.
+    let toml_bytes = fs::read("keyboard.toml").unwrap_or_default();
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    std::hash::Hasher::write(&mut hasher, &toml_bytes);
+    let toml_fp = std::hash::Hasher::finish(&hasher);
+    let const_declarations = format!(
+        "{const_declarations}\n#[allow(dead_code)] const _KEYBOARD_TOML_FINGERPRINT: u64 = {toml_fp};\n"
+    );
+
     fs::write(out_file, const_declarations).unwrap();
 }
