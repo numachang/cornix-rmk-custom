@@ -4,6 +4,9 @@ Unofficial, custom RMK firmware for the Cornix split keyboard (nRF52840, BLE).
 
 *🇯🇵 日本語版は [README.ja.md](README.ja.md) を参照してください。*
 
+> 🔀 Prefer ZMK? A ZMK build for the same keyboard is also available:
+> [numachang/cornix-zmk-custom](https://github.com/numachang/cornix-zmk-custom).
+
 [RMK](https://rmk.rs) firmware for the **Cornix** — a 50-key column-staggered
 split keyboard built around the nRF52840 (Bluetooth LE). Hardware-verified on
 both halves: low-latency wireless typing, reliable tap-hold thumb keys, and

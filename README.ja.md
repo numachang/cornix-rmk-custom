@@ -4,6 +4,9 @@ Cornix split キーボード（nRF52840, BLE）向けの非公式・独自 RMK �
 
 *🇬🇧 English version: [README.md](README.md)*
 
+> 🔀 同じキーボード向けの ZMK 版もあります:
+> [numachang/cornix-zmk-custom](https://github.com/numachang/cornix-zmk-custom)。
+
 nRF52840（Bluetooth LE）ベースの 50 キー列スタッガード分割キーボード **Cornix** 向けの
 [RMK](https://rmk.rs) ファームウェアです。左右両半とも実機で動作確認済み — 低レイテンシな
 無線入力、信頼できるタップホールド親指キー、WS2812 ステータス LED に対応しています。

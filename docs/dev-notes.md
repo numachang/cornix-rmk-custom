@@ -3,6 +3,11 @@
 Cornix（nRF52840 BLE split・RMK ファーム）の実装で得た知見のまとめ。
 ハマりどころと、その回避策を残す。詳細は [`src/ws2812.rs`](../src/ws2812.rs) を参照。
 
+LED は RMK の `#[processor]`（`PollingProcessor`）として実装し、デバイス状態の各種イベント
+（`BatteryStatusEvent` / `ChargingStateEvent` / `ConnectionStatusChangeEvent` /
+`PeripheralConnectedEvent` / `CentralConnectedEvent` / `LedIndicatorEvent`）を購読して
+一定間隔で再描画する。`mod` 側は `#[register_processor(poll)]` で登録する。
+
 ---
 
 ## WS2812 ステータスLED
@@ -53,25 +58,27 @@ Cornix（nRF52840 BLE split・RMK ファーム）の実装で得た知見のま�
 
 ### 接続検出のハマりどころ
 
-RMK には「BLE 接続 LED」の参考実装が無い（組み込み controller はロック LED / battery / wpm のみ）。
+RMK には「BLE 接続 LED」の参考実装が無い（組み込み processor はロック LED / battery / wpm のみ）。
 接続検出は自前で行うが、素直な手段が軒並み使えなかった：
 
-1. **`BleState::Connected` イベントは不安定。**
+1. **`BleState::Connected` だけでは不安定。**
    GATT の `ConnectionParamsUpdated` / `DataLengthUpdated` が契機のため、ホストによっては
    遅延（接続の数秒後）または未発火。これだけに頼ると緑パルスが出ない/遅れる。
-2. **`rmk::state::get_connection_state()`（`CONNECTION_STATE`）は「ホスト接続」を表さない。**
-   広告中に走る `run_keyboard` がこれを `Connected` にするため、接続前から `Connected` を返す。
-   ポーリングすると接続前に誤って緑パルスが出る。
-3. **採用：`ControllerEvent::KeyboardIndicator`（ホストの LED 出力レポート）を接続エッジに使う。**
+2. **接続状態は `ConnectionStatusChangeEvent` から取る。**
+   `.ble.state`（`Advertising` / `Connected` / `Inactive`）と `.ble.profile` を購読し、
+   `Connected` を接続、`Advertising` を検索として扱う。RMK 旧来の接続状態ポーリング
+   （`CONNECTION_STATE`）は広告中に走る `run_keyboard` が `Connected` にするため
+   「ホスト接続」を表さず、接続前に誤って緑パルスが出るので使えない。
+3. **採用：`LedIndicatorEvent`（ホストの LED 出力レポート）を接続エッジに使う。**
    出力レポートは接続が確立していなければ届かない＝誤検出なし。多くのホスト（Windows 等）は
    接続時に初期 LED 同期レポートを送る。`ble_connected` が false の時だけ発火させ、
-   接続後の CapsLock 等での再発火を抑止する。`BleState::Connected` も併用（出るホスト用）。
+   接続後の CapsLock 等での再発火を抑止する。`ConnectionStatusChangeEvent` の `Connected` も併用。
 
 ### 二重パルス対策
 
 パルス/点滅タイマ（`frame`）のリセットは **立ち上がりエッジのみ**で行う
 （connected が false→true、advertising が false→true、プロファイル変更）。
-立下りでリセットすると、接続の数秒後に遅れて来る `BleState::Connected` が
+立下りでリセットすると、接続の数秒後に遅れて来る `Connected` が
 `advertising` フラグを落とす変化を拾い、**緑パルスが 2 回出る**。
 
 ---
