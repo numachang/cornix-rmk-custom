@@ -82,8 +82,15 @@ split_peripherals_num = 1
 
 # Hold-tap defaults for the layer-tap / mod-tap keys.
 [behavior.morse]
-enable_flow_tap = true
-prior_idle_time = "120ms"
+# Hold-preferred behaviour: pressing ANY other key while a layer-tap / mod-tap is
+# held resolves it immediately as HOLD ("hold on other key press"). A lone quick
+# press+release (shorter than hold_timeout) is still a tap. So "held = hold,
+# short tap = tap", which is what we want for reliable layer/profile access.
+#
+# flow_tap is intentionally OFF: it force-taps any hold-tap pressed shortly after
+# typing, which was overriding the hold decision and dropping deliberate holds
+# (BT-profile keys needed a double press, number layer felt unnatural).
+hold_on_other_press = true
 hold_timeout = "200ms"
 gap_timeout = "200ms"
 
