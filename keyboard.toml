@@ -120,39 +120,39 @@ matrix_map = """
 [[layer]]
 name = "Base"
 keys = """
-PrintScreen Q W E R T                          Y U I O P Minus
-CapsLock    A S D F G                          H J K L Enter Slash
-LShift      Z X C V B AudioMute   MouseBtn3    N M Comma Dot Up International1
-LCtrl LGui LAlt LT(1,Tab) LT(2,Space) MT(Language2,LShift)   MT(Language1,RShift) Backspace MO(1) Left Down Right
+PrintScreen Q W E R T              Y U I O P Minus
+CapsLock A S D F G              H J K L Enter Slash
+LShift Z X C V B AudioMute  MouseBtn3 N M Comma Dot Up International1
+LCtrl LGui LAlt LT(1,Tab) LT(2,Space) MT(Language2,LShift)              MT(Language1,RShift) Backspace MO(1) Left Down Right
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 
 [[layer]]
 name = "Symbols"
 keys = """
-User7 WM(Kc2,LShift) WM(Kc7,LShift) WM(Kc3,LShift) WM(Kc4,LShift) No                No WM(Comma,LShift) WM(Dot,LShift) RightBracket NonusHash Delete
-User0 LeftBracket WM(Kc3,LShift) WM(Kc6,LShift) No No                               No No No WM(RightBracket,LShift) WM(NonusHash,LShift) No
-User1 No No Quote Semicolon No AudioMute   MouseBtn3 MT(Kc6,LShift) No WM(Kc1,LShift) WM(Slash,LShift) No No
-User2 No No No No No                                      No No No No No No
+User7 WM(Kc2,LShift) WM(Kc7,LShift) WM(Kc3,LShift) WM(Kc4,LShift) No              No WM(Comma,LShift) WM(Dot,LShift) RightBracket NonusHash WM(International1,LShift)
+User0 LeftBracket WM(Kc3,LShift) WM(Kc6,LShift) No No              No WM(Kc8,LShift) WM(Kc9,LShift) WM(RightBracket,LShift) WM(NonusHash,LShift) No
+User1 No No Quote Semicolon No AudioMute  MouseBtn3 MT(Kc6,LShift) No WM(Kc1,LShift) WM(Slash,LShift) No No
+User2 No No No No No              No Delete No No No No
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 
 [[layer]]
 name = "Number"
 keys = """
-No No Kc7 Kc8 Kc9 No                       No No   Up   No    No No
-No No Kc4 Kc5 Kc6 No                       No Left Down Right No No
-No Kc0 Kc1 Kc2 Kc3 No AudioMute   MouseBtn3 No No No No No No
-No No No No No No                           No RShift MO(3) No No No
+No WM(Semicolon,LShift) Kc7 Kc8 Kc9 WM(Quote,LShift)              No No Up No No No
+No Minus Kc4 Kc5 Kc6 Slash              No Left Down Right No No
+No Kc0 Kc1 Kc2 Kc3 WM(Minus,LShift) AudioMute  MouseBtn3 No No No No No No
+No No No No No No              No RShift MO(3) No No No
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 
 [[layer]]
 name = "Functions"
 keys = """
-No No F7 F8 F9 F12                           No No No No No No
-No No F4 F5 F6 F11                           No No No No No No
-No No F1 F2 F3 F10 AudioMute   MouseBtn3      No No No No No No
-No No No No No No                             No No No No No No
+No No F7 F8 F9 F12              No No No No No No
+No No F4 F5 F6 F11              No No No No No No
+No No F1 F2 F3 F10 AudioMute  MouseBtn3 No No No No No No
+No No No No No No              No No No No No No
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
