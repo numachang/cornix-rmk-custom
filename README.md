@@ -2,26 +2,50 @@
 
 Unofficial, custom RMK firmware for the Cornix split keyboard (nRF52840, BLE).
 
-> ⚠️ **WORK IN PROGRESS — NOT YET HARDWARE-VERIFIED.**
-> This firmware compiles and produces UF2 images, but it has **not** been flashed
-> to or validated on real hardware yet. **Do not use it on your keyboard.** It may
-> not work and could require recovery via the bootloader/SWD. Wait until this
-> notice is removed.
-
 *🇯🇵 日本語版は [README.ja.md](README.ja.md) を参照してください。*
 
 [RMK](https://rmk.rs) firmware for the **Cornix** — a 50-key column-staggered
-split keyboard built around the nRF52840 (Bluetooth LE).
+split keyboard built around the nRF52840 (Bluetooth LE). Hardware-verified on
+both halves: low-latency wireless typing, reliable tap-hold thumb keys, and
+WS2812 status LEDs.
 
 ## Features
 
 - Wireless BLE split (left = central, right = peripheral), USB on the central.
-- 4 layers, hold-tap / layer-tap thumb keys, rotary encoder on each half.
-- 3 switchable BLE host profiles.
+- 4 layers, hold-tap / layer-tap thumb keys, a rotary encoder on each half.
+- 3 switchable BLE host profiles, switched with a single press.
+- Low-latency split link (1M PHY) that stays responsive under fast typing.
+- Reliable tap-hold: fast rolls keep their taps, a lone soft tap registers, and
+  holds (layers / modifiers) engage the instant another key is pressed.
+- WS2812 status LEDs (2 per half) for Bluetooth profile, split link, battery and
+  charging — driven by the PWM peripheral + DMA so they never disturb the radio.
 - Battery reporting from the on-board divider.
-- WS2812 status LEDs (2 per half): Bluetooth profile, split-link, battery and
-  charging indication.
 - [Vial](https://get.vial.today) support for live remapping.
+
+## Tap-hold behaviour
+
+The thumb layer-tap / mod-tap keys use a permissive-hold + flow-tap profile,
+built against a pinned RMK revision that carries the upstream tap-hold / morse
+fixes. In practice:
+
+- Rolling `space → letter` (releasing space first) stays a tap — no crushed words.
+- A lone, soft press of a tap-hold key still emits its tap.
+- Holding a tap-hold key and pressing another key engages the hold (layer /
+  modifier) immediately, independent of the hold timeout.
+- Switching the BLE host profile takes a single press.
+
+Tuning lives in `[behavior.morse]` in `keyboard.toml`: `permissive_hold` +
+`enable_flow_tap` (150 ms prior-idle window) with a 1500 ms hold/gap timeout.
+
+## LED indicators
+
+Each half drives two WS2812 LEDs. They pulse on a state change and then go dark,
+so the strip is not lit during normal typing:
+
+- **Inner** — battery / charging (breathing while charging, green when full) and
+  peer-link loss.
+- **Outer** — the active Bluetooth profile and connection state (central), or the
+  split peer link (peripheral).
 
 ## Layout
 
@@ -66,6 +90,23 @@ The first run installs the remaining tools automatically (`flip-link`,
 compile, run `cargo make build`; the release ELFs land in
 `target/thumbv7em-none-eabihf/release/{central,peripheral}` and can also be
 flashed directly with `cargo run --release --bin central` via `probe-rs`.
+
+### Regenerating the default keymap
+
+The power-on default keymap is generated from a Vial export, not hand-edited.
+After changing the keymap in the Vial GUI, export it over `keymaps/cornix.vil`
+and run:
+
+```sh
+python tools/vil_to_keyboard_toml.py
+cargo make uf2
+```
+
+The script rewrites the `[[layer]]` blocks in `keyboard.toml` from the export
+(use `--dry-run` to preview). Note that `keyboard.toml` defaults only load into a
+device with empty storage, so a normal flash will not overwrite a keymap you have
+already stored via Vial — clear storage (`cargo make uf2-reset`) once to adopt
+new defaults.
 
 ### Build notes
 
