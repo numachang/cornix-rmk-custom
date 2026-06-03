@@ -1,0 +1,15 @@
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
+runner = "probe-rs run --chip nRF52840_xxAA"
+
+# flip-link guards against stack overflows on embedded targets.
+linker = "flip-link"
+
+[build]
+target = "thumbv7em-none-eabihf"     # Cortex-M4F (nRF52840, with FPU)
+
+[env]
+DEFMT_LOG = "info"
+KEYBOARD_TOML_PATH = { value = "keyboard.toml", relative = true }
+# rustc needs a larger stack to compile the keycode tables (otherwise it can
+# overflow on Windows). Harmless elsewhere.
+RUST_MIN_STACK = "33554432"

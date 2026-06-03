@@ -1,0 +1,23 @@
+# Rust / Cargo build artifacts
+/target
+**/*.rs.bk
+*.pdb
+
+# Local build logs
+*.log
+
+# Local working notes / reference material — NOT for publication
+/CLAUDE.md
+/.claude/
+/notes-local/
+/plans/
+/local/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Flashable build outputs
+/dist/

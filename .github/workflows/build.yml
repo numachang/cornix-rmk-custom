@@ -1,0 +1,40 @@
+name: Build firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install libclang (for nrf-sdc bindgen)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libclang-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: thumbv7em-none-eabihf
+
+      - name: Install cargo-make
+        run: cargo install cargo-make
+
+      - name: Build UF2 (cargo make)
+        # cargo-make installs flip-link, cargo-binutils + llvm-tools and
+        # cargo-hex-to-uf2 on first use, then emits dist/cornix-{left,right}.uf2.
+        run: cargo make uf2
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cornix-firmware
+          path: |
+            target/thumbv7em-none-eabihf/release/central
+            target/thumbv7em-none-eabihf/release/peripheral
+            dist/cornix-left.uf2
+            dist/cornix-right.uf2

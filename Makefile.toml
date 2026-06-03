@@ -1,0 +1,74 @@
+# Local build automation (cargo-make) for the Cornix RMK firmware.
+#
+#   cargo make uf2     build both halves and emit flashable UF2s into dist/:
+#                        central    -> dist/cornix-left.uf2   (left half / USB host)
+#                        peripheral -> dist/cornix-right.uf2  (right half)
+#   cargo make build   just compile both binaries (release)
+#
+# Pure-cargo toolchain, no Python / no ARM GNU: cargo-binutils + llvm-tools +
+# cargo-hex-to-uf2 + flip-link. Any missing crate/component is installed on the
+# first run, so a clean checkout needs only `cargo install cargo-make`.
+
+[config]
+default_to_workspace = false
+skip_core_tasks = true
+
+[env]
+# nrf-sdc-sys' bindgen needs libclang. On Windows default to the usual LLVM
+# install unless the caller already set LIBCLANG_PATH; untouched on Linux/CI
+# where libclang is found automatically.
+LIBCLANG_PATH = { value = "C:\\Program Files\\LLVM\\bin", condition = { platforms = ["windows"], env_not_set = ["LIBCLANG_PATH"] } }
+
+[tasks.install-llvm-tools]
+install_crate = { rustup_component_name = "llvm-tools" }
+
+[tasks.flip-link]
+install_crate = { crate_name = "flip-link", binary = "flip-link", test_arg = ["-h"] }
+
+[tasks.build]
+description = "Compile central + peripheral (release)."
+dependencies = ["flip-link"]
+command = "cargo"
+args = ["build", "--release", "--bin", "central", "--bin", "peripheral"]
+
+[tasks.dist-dir]
+private = true
+script_runner = "@duckscript"
+script = "mkdir dist"
+
+# --- central -> cornix-left ---
+[tasks.hex-left]
+private = true
+dependencies = ["install-llvm-tools", "build"]
+install_crate = { crate_name = "cargo-binutils", binary = "cargo", test_arg = ["objcopy", "--help"] }
+command = "cargo"
+args = ["objcopy", "--release", "--bin", "central", "--", "-O", "ihex", "target/cornix-left.hex"]
+
+[tasks.uf2-left]
+private = true
+dependencies = ["hex-left", "dist-dir"]
+install_crate = { crate_name = "cargo-hex-to-uf2", binary = "cargo", test_arg = ["hex-to-uf2", "--help"] }
+command = "cargo"
+args = ["hex-to-uf2", "--input-path", "target/cornix-left.hex", "--output-path", "dist/cornix-left.uf2", "--family", "nrf52840"]
+
+# --- peripheral -> cornix-right ---
+[tasks.hex-right]
+private = true
+dependencies = ["install-llvm-tools", "build"]
+install_crate = { crate_name = "cargo-binutils", binary = "cargo", test_arg = ["objcopy", "--help"] }
+command = "cargo"
+args = ["objcopy", "--release", "--bin", "peripheral", "--", "-O", "ihex", "target/cornix-right.hex"]
+
+[tasks.uf2-right]
+private = true
+dependencies = ["hex-right", "dist-dir"]
+install_crate = { crate_name = "cargo-hex-to-uf2", binary = "cargo", test_arg = ["hex-to-uf2", "--help"] }
+command = "cargo"
+args = ["hex-to-uf2", "--input-path", "target/cornix-right.hex", "--output-path", "dist/cornix-right.uf2", "--family", "nrf52840"]
+
+[tasks.uf2]
+description = "Build both halves and write dist/cornix-{left,right}.uf2."
+dependencies = ["uf2-left", "uf2-right"]
+
+[tasks.default]
+alias = "uf2"

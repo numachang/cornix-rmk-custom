@@ -1,0 +1,141 @@
+[keyboard]
+name = "Cornix"
+product_name = "Cornix"
+vendor_id = 0x4c4b
+product_id = 0x4643
+manufacturer = "JZF"
+chip = "nrf52840"
+
+# --- Split: BLE only. Left = central, right = peripheral. ---
+[split]
+connection = "ble"
+
+[split.central]
+rows = 4
+cols = 7
+row_offset = 0
+col_offset = 0
+ble_addr = [0xCC, 0x11, 0x22, 0x33, 0x44, 0x55]
+
+[split.central.matrix]
+# col2row is RMK's default diode direction.
+row_pins = ["P0_30", "P0_31", "P0_29", "P0_02"]
+col_pins = ["P0_28", "P0_03", "P1_10", "P1_11", "P1_13", "P0_09", "P0_10"]
+
+[[split.central.input_device.encoder]]
+pin_a = "P1_04"
+pin_b = "P1_06"
+phase = "resolution"
+resolution = 4
+
+[[split.peripheral]]
+rows = 4
+cols = 7
+row_offset = 4
+col_offset = 0
+ble_addr = [0xCC, 0x11, 0x22, 0x33, 0x44, 0x66]
+
+[split.peripheral.matrix]
+row_pins = ["P1_09", "P0_28", "P0_03", "P1_10"]
+col_pins = ["P0_30", "P0_31", "P0_29", "P0_02", "P1_13", "P0_10", "P0_09"]
+
+[[split.peripheral.input_device.encoder]]
+pin_a = "P1_04"
+pin_b = "P1_06"
+phase = "resolution"
+resolution = 4
+
+# --- BLE / power / battery ---
+[ble]
+enabled = true
+ble_use_2m_phy = true
+default_tx_power = 0
+# Battery sense: AIN3 (P0.05) through a 2.0M / 2.806M external divider.
+battery_adc_pin = "P0_05"
+adc_divider_measured = 2000
+adc_divider_total = 2806
+# Charger status line (left half only); fed into the charging indicator.
+charge_state.pin = "P0_01"
+charge_state.low_active = true
+
+[chip.nrf52840]
+dcdc_reg0 = true
+dcdc_reg1 = true
+dcdc_reg0_voltage = "3V3"
+
+[storage]
+enabled = true
+clear_storage = false
+# Place storage below the Adafruit bootloader (0xF4000) and well above the
+# firmware image. 0xA0000 + 32 sectors (128K) -> 0xA0000..0xA8000.
+start_addr = 0xA0000
+num_sectors = 32
+
+[host]
+vial_enabled = true
+unlock_keys = [[0, 0], [0, 5]]
+
+[rmk]
+ble_profiles_num = 3
+debounce_time = 5
+split_peripherals_num = 1
+
+# Hold-tap defaults for the layer-tap / mod-tap keys.
+[behavior.morse]
+enable_flow_tap = true
+prior_idle_time = "120ms"
+hold_timeout = "200ms"
+gap_timeout = "200ms"
+
+# --- Layout: 8 logical rows (central 0-3, peripheral 4-7) x 7 cols.
+#     Physical layout is the 50-key Cornix grid. ---
+[layout]
+rows = 8
+cols = 7
+layers = 4
+matrix_map = """
+(0,0) (0,1) (0,2) (0,3) (0,4) (0,5)              (4,5) (4,4) (4,3) (4,2) (4,1) (4,0)
+(1,0) (1,1) (1,2) (1,3) (1,4) (1,5)              (5,5) (5,4) (5,3) (5,2) (5,1) (5,0)
+(2,0) (2,1) (2,2) (2,3) (2,4) (2,5) (2,6)  (5,6) (6,5) (6,4) (6,3) (6,2) (6,1) (6,0)
+(3,0) (3,1) (3,2) (3,3) (3,4) (3,5)              (7,5) (7,4) (7,3) (7,2) (7,1) (7,0)
+"""
+
+[[layer]]
+name = "Base"
+keys = """
+PrintScreen Q W E R T                          Y U I O P Minus
+CapsLock    A S D F G                          H J K L Enter Slash
+LShift      Z X C V B AudioMute   MouseBtn3    N M Comma Dot Up International1
+LCtrl LGui LAlt LT(1,Tab) LT(2,Space) MT(Language2,LShift)   MT(Language1,RShift) Backspace MO(1) Left Down Right
+"""
+encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
+
+[[layer]]
+name = "Symbols"
+keys = """
+User7 WM(Kc2,LShift) WM(Kc7,LShift) WM(Kc3,LShift) WM(Kc4,LShift) No                No WM(Comma,LShift) WM(Dot,LShift) RightBracket NonusHash Delete
+User0 LeftBracket WM(Kc3,LShift) WM(Kc6,LShift) No No                               No No No WM(RightBracket,LShift) WM(NonusHash,LShift) No
+User1 No No Quote Semicolon No AudioMute   MouseBtn3 MT(Kc6,LShift) No WM(Kc1,LShift) WM(Slash,LShift) No No
+User2 No No No No No                                      No No No No No No
+"""
+encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
+
+[[layer]]
+name = "Number"
+keys = """
+No No Kc7 Kc8 Kc9 No                       No No   Up   No    No No
+No No Kc4 Kc5 Kc6 No                       No Left Down Right No No
+No Kc0 Kc1 Kc2 Kc3 No AudioMute   MouseBtn3 No No No No No No
+No No No No No No                           No RShift MO(3) No No No
+"""
+encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
+
+[[layer]]
+name = "Functions"
+keys = """
+No No F7 F8 F9 F12                           No No No No No No
+No No F4 F5 F6 F11                           No No No No No No
+No No F1 F2 F3 F10 AudioMute   MouseBtn3      No No No No No No
+No No No No No No                             No No No No No No
+"""
+encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
