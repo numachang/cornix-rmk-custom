@@ -14,22 +14,26 @@
 //!   * pixel 0 — "inner": battery / charging / peer-loss notifications
 //!   * pixel 1 — "outer": Bluetooth profile (central) or peer link (peripheral)
 //!
-//! The indicator is an RMK [`PollingController`]: it caches device state from
-//! the controller event channel in [`process_event`] and repaints both pixels
-//! every [`Ws2812Indicator::INTERVAL`] in [`update`]. All animation is derived
-//! from a frame counter, so no extra timers are needed. State-change events
-//! reset the counter, which is how the one-shot "show for N frames then go
-//! dark" pulses (host-connect, peer-up, fully-charged) are timed. [`render`]
-//! skips the DMA transfer when the frame is unchanged — the WS2812 latch holds
-//! the last colour — so an idle indicator does no work at all.
+//! The indicator is an RMK [`PollingProcessor`]: the `#[processor]` macro wires
+//! it up to the device-state event channels, caches the latest values in the
+//! `on_*_event` handlers, and calls [`Ws2812Indicator::poll`] every
+//! `poll_interval` ms to repaint both pixels. All animation is derived from a
+//! frame counter, so no extra timers are needed. State-change events reset the
+//! counter, which is how the one-shot "show for N frames then go dark" pulses
+//! (host-connect, peer-up, fully-charged) are timed. [`render`] skips the DMA
+//! transfer when the frame is unchanged — the WS2812 latch holds the last
+//! colour — so an idle indicator does no work at all.
 
 use embassy_nrf::gpio::Output;
 use embassy_nrf::pwm::{SequenceConfig, SequencePwm, SingleSequenceMode, SingleSequencer};
 use embassy_time::{Duration, Timer};
-use rmk::ble::BleState;
-use rmk::channel::{CONTROLLER_CHANNEL, ControllerSub};
-use rmk::controller::{Controller, PollingController};
-use rmk::event::ControllerEvent;
+use rmk::event::{
+    BatteryStatusEvent, CentralConnectedEvent, ChargingStateEvent, ConnectionStatusChangeEvent,
+    LedIndicatorEvent, PeripheralConnectedEvent,
+};
+use rmk::macros::processor;
+use rmk::types::battery::{BatteryStatus, ChargeState};
+use rmk::types::ble::BleState;
 
 /// Which half this indicator runs on. Determines the meaning of the outer pixel
 /// and which "link lost" signal feeds the peer-loss blink.
@@ -39,8 +43,6 @@ pub enum Role {
     Peripheral,
 }
 
-/// Repaint period. 33 ms ≈ 30 Hz, matching the breathing animation step.
-const FRAME_MS: u64 = 33;
 /// Frames per breathing period (~2 s).
 const BREATH_FRAMES: u32 = 60;
 /// Frames in one blink period (~1 s) and the "on" portion (~0.4 s, 40% duty).
@@ -112,10 +114,28 @@ const RED: Grb = Grb { g: 0, r: LEVEL, b: 0 };
 const GREEN: Grb = Grb { g: LEVEL, r: 0, b: 0 };
 const BLUE: Grb = Grb { g: 0, r: 0, b: LEVEL };
 
+/// Status indicator processor.
+///
+/// `#[processor]` generates the `Processor` / `PollingProcessor` / `Runnable`
+/// impls: it subscribes to the listed event channels, dispatches each event to
+/// the matching `on_<event>_event` handler below, and calls [`Self::poll`]
+/// every `poll_interval` ms. The subscribe list is the union of what both
+/// halves need; events that never fire on a given half are simply never
+/// delivered (each half is its own binary, but the struct is shared).
+#[processor(
+    subscribe = [
+        BatteryStatusEvent,
+        ChargingStateEvent,
+        PeripheralConnectedEvent,
+        CentralConnectedEvent,
+        ConnectionStatusChangeEvent,
+        LedIndicatorEvent,
+    ],
+    poll_interval = 33
+)]
 pub struct Ws2812Indicator {
     pwm: SequencePwm<'static>,
     ext_power: Output<'static>,
-    sub: ControllerSub,
     role: Role,
 
     // Cached device state.
@@ -140,7 +160,6 @@ impl Ws2812Indicator {
         Self {
             pwm,
             ext_power,
-            sub: CONTROLLER_CHANNEL.subscriber().unwrap(),
             role,
             battery: 100,
             charging: false,
@@ -174,6 +193,15 @@ impl Ws2812Indicator {
     fn double_blink_on(&self) -> bool {
         let phase = self.frame % BLINK_PERIOD;
         phase < 6 || (phase >= 12 && phase < 18)
+    }
+
+    /// Update the cached charging flag, restarting the animation on a change so
+    /// the charge pulse / fully-charged window time from the transition.
+    fn set_charging(&mut self, charging: bool) {
+        if charging != self.charging {
+            self.charging = charging;
+            self.frame = 0;
+        }
     }
 
     fn inner_color(&self) -> Grb {
@@ -291,90 +319,79 @@ impl Ws2812Indicator {
             self.rail_on = false;
         }
     }
-}
 
-impl Controller for Ws2812Indicator {
-    type Event = ControllerEvent;
+    // --- Event handlers (dispatched by the `#[processor]` macro) ---
 
-    async fn process_event(&mut self, event: Self::Event) {
-        match event {
-            ControllerEvent::Battery(level) => {
+    /// Local battery status: carries both the level and the charge state, so it
+    /// keeps the charging flag in sync as well. The `level >= FULL` crossing
+    /// while charging starts the green fully-charged pulse window.
+    async fn on_battery_status_event(&mut self, event: BatteryStatusEvent) {
+        if let BatteryStatus::Available { charge_state, level } = event.0 {
+            self.set_charging(charge_state == ChargeState::Charging);
+            if let Some(level) = level {
                 let was_full = self.battery >= BATTERY_FULL;
                 self.battery = level;
-                // Crossing up into "full" while charging starts the green
-                // fully-charged pulse window.
                 if self.charging && level >= BATTERY_FULL && !was_full {
                     self.frame = 0;
                 }
             }
-            ControllerEvent::ChargingState(charging) => {
-                if charging != self.charging {
-                    self.charging = charging;
-                    self.frame = 0;
-                }
-            }
-            ControllerEvent::SplitPeripheral(_, connected) if self.role == Role::Central => {
-                if connected != self.peer_connected {
-                    self.peer_connected = connected;
-                    self.frame = 0;
-                }
-            }
-            ControllerEvent::SplitCentral(connected) if self.role == Role::Peripheral => {
-                if connected != self.peer_connected {
-                    self.peer_connected = connected;
-                    self.frame = 0;
-                }
-            }
-            ControllerEvent::BleState(profile, state) => {
-                // Drive connection state from the BleState events. (Polling
-                // rmk's CONNECTION_STATE does NOT work: `run_keyboard` sets it
-                // Connected even while only advertising, so it fired a false
-                // "connected" pulse before any host connected.) Guard the frame
-                // reset so a stream of identical `Advertising` events can't
-                // re-arm the search blink forever (which would bit-bang every
-                // frame and lag the radio).
-                let connected = matches!(state, BleState::Connected);
-                let advertising = matches!(state, BleState::Advertising);
-                // Restart the pulse/blink only on a RISING edge (start of
-                // connection or start of searching) or a profile change. Not on
-                // falling edges: e.g. a late BleState::Connected arrives seconds
-                // after KeyboardIndicator already marked us connected and clears
-                // `advertising` — resetting on that would fire a second green
-                // pulse a few seconds after connecting.
-                let newly_connected = connected && !self.ble_connected;
-                let newly_advertising = advertising && !self.ble_advertising;
-                if newly_connected || newly_advertising || profile != self.ble_profile {
-                    self.frame = 0;
-                }
-                self.ble_profile = profile;
-                self.ble_connected = connected;
-                self.ble_advertising = advertising;
-            }
-            ControllerEvent::KeyboardIndicator(_) if self.role == Role::Central => {
-                // A host LED-state (output) report can only arrive over an
-                // established host connection, so it is a reliable "connected"
-                // edge — unlike BleState::Connected, which some hosts (e.g.
-                // Windows) never trigger. Windows sends the initial LED sync on
-                // connect. Only fire on the first one (when not already marked
-                // connected) so toggling CapsLock later doesn't re-pulse.
-                if !self.ble_connected {
-                    self.ble_connected = true;
-                    self.frame = 0;
-                }
-            }
-            _ => (),
         }
     }
 
-    async fn next_message(&mut self) -> Self::Event {
-        self.sub.next_message_pure().await
+    /// Immediate charging-line edge (faster than the periodic battery status).
+    async fn on_charging_state_event(&mut self, event: ChargingStateEvent) {
+        self.set_charging(event.charging);
     }
-}
 
-impl PollingController for Ws2812Indicator {
-    const INTERVAL: Duration = Duration::from_millis(FRAME_MS);
+    /// Central view of the peripheral link.
+    async fn on_peripheral_connected_event(&mut self, event: PeripheralConnectedEvent) {
+        if self.role == Role::Central && event.connected != self.peer_connected {
+            self.peer_connected = event.connected;
+            self.frame = 0;
+        }
+    }
 
-    async fn update(&mut self) {
+    /// Peripheral view of the central link.
+    async fn on_central_connected_event(&mut self, event: CentralConnectedEvent) {
+        if self.role == Role::Peripheral && event.connected != self.peer_connected {
+            self.peer_connected = event.connected;
+            self.frame = 0;
+        }
+    }
+
+    /// Host (BLE) connection status: drives the central outer pixel's profile
+    /// colour and connect / search animations. Restart the pulse/blink only on a
+    /// RISING edge (start of connection or start of searching) or a profile
+    /// change — not on falling edges, so a late `Connected` arriving after
+    /// `LedIndicatorEvent` already marked us connected won't fire a second pulse.
+    async fn on_connection_status_change_event(&mut self, event: ConnectionStatusChangeEvent) {
+        let ble = event.0.ble;
+        let connected = matches!(ble.state, BleState::Connected);
+        let advertising = matches!(ble.state, BleState::Advertising);
+        let newly_connected = connected && !self.ble_connected;
+        let newly_advertising = advertising && !self.ble_advertising;
+        if newly_connected || newly_advertising || ble.profile != self.ble_profile {
+            self.frame = 0;
+        }
+        self.ble_profile = ble.profile;
+        self.ble_connected = connected;
+        self.ble_advertising = advertising;
+    }
+
+    /// A host LED-state (output) report can only arrive over an established host
+    /// connection, so it is a reliable "connected" edge — unlike
+    /// `BleState::Connected`, which some hosts (e.g. Windows) never trigger.
+    /// Only fire on the first one (when not already marked connected) so toggling
+    /// CapsLock later doesn't re-pulse.
+    async fn on_led_indicator_event(&mut self, _event: LedIndicatorEvent) {
+        if self.role == Role::Central && !self.ble_connected {
+            self.ble_connected = true;
+            self.frame = 0;
+        }
+    }
+
+    /// Timer-driven repaint (called every `poll_interval` ms by the macro).
+    async fn poll(&mut self) {
         let inner = self.inner_color();
         let outer = self.outer_color();
         self.render(inner, outer).await;

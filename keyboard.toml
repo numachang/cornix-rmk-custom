@@ -48,7 +48,7 @@ resolution = 4
 # --- BLE / power / battery ---
 [ble]
 enabled = true
-ble_use_2m_phy = false
+use_2m_phy = false
 default_tx_power = 0
 # Battery sense: AIN3 (P0.05) through a 2.0M / 2.806M external divider.
 battery_adc_pin = "P0_05"

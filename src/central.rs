@@ -10,15 +10,13 @@ mod ws2812;
 mod keyboard_central {
     use embassy_nrf::gpio::{Level, Output, OutputDrive};
     use embassy_nrf::pwm::{Config, Prescaler, SequenceLoad, SequencePwm};
-    // Bring the polling-loop trait into the generated `main` so the controller
-    // driver the macro emits (`rgb.polling_loop()`) resolves.
-    use rmk::controller::PollingController;
 
     use crate::ws2812::{PWM_TOP, Role, Ws2812Indicator};
 
     /// Left half: WS2812 data on P0.24, LED rail (ext-power) on P0.13.
     /// Driven by PWM0 + EasyDMA — no CPU timing loop, so the BLE radio is undisturbed.
-    #[controller(poll)]
+    /// Polling processor: it caches device-state events and repaints on a timer.
+    #[register_processor(poll)]
     fn rgb() -> Ws2812Indicator {
         let mut config = Config::default();
         config.prescaler = Prescaler::Div1; // 16 MHz PWM clock
