@@ -87,12 +87,22 @@ split_peripherals_num = 1
 # press+release (shorter than hold_timeout) is still a tap. So "held = hold,
 # short tap = tap", which is what we want for reliable layer/profile access.
 #
-# flow_tap is intentionally OFF: it force-taps any hold-tap pressed shortly after
-# typing, which was overriding the hold decision and dropping deliberate holds
-# (BT-profile keys needed a double press, number layer felt unnatural).
-hold_on_other_press = true
-hold_timeout = "200ms"
-gap_timeout = "200ms"
+# permissive_hold: a tap-hold key only becomes a HOLD if another key is pressed
+# AND released while it is held. So rolling "space -> letter" (release space
+# first) keeps space as a TAP, while deliberate layer use (hold space, fully
+# tap a number) triggers the layer. flow_tap additionally forces a tap when the
+# key is pressed mid fast-typing (within prior_idle_time of the previous key).
+# This is RMK's recommended tap-friendly config; works now that #743 is patched.
+enable_flow_tap = true
+prior_idle_time = "150ms"
+permissive_hold = true
+# Standalone tap/hold time boundary: a key held alone longer than this becomes a
+# hold. Generous (300ms) so taps aren't crushed into holds. This does NOT slow
+# layer/mod access: hold_on_other_press fires the hold the instant another key is
+# pressed, independent of hold_timeout — this only matters when a tap-hold key is
+# held alone with nothing else pressed.
+hold_timeout = "1500ms"
+gap_timeout = "1500ms"
 
 # --- Layout: 8 logical rows (central 0-3, peripheral 4-7) x 7 cols.
 #     Physical layout is the 50-key Cornix grid. ---
