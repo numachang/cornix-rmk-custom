@@ -8,7 +8,10 @@ linker = "flip-link"
 target = "thumbv7em-none-eabihf"     # Cortex-M4F (nRF52840, with FPU)
 
 [env]
-DEFMT_LOG = "info"
+# Hot paths (split notify, HID report) log per key event; at "info" the defmt
+# encode + RTT writes pile up under fast typing and stall the pipeline. Keep
+# only error/panic (compiled-in logs below this level vanish at compile time).
+DEFMT_LOG = "error"
 KEYBOARD_TOML_PATH = { value = "keyboard.toml", relative = true }
 # rustc needs a larger stack to compile the keycode tables (otherwise it can
 # overflow on Windows). Harmless elsewhere.
