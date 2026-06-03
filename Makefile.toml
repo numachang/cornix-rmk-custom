@@ -72,3 +72,80 @@ dependencies = ["uf2-left", "uf2-right"]
 
 [tasks.default]
 alias = "uf2"
+
+# ---------------------------------------------------------------------------
+# Storage-reset images.
+#
+#   cargo make uf2-reset   build one-shot "factory reset" UF2s into dist/:
+#                            dist/cornix-left-reset.uf2
+#                            dist/cornix-right-reset.uf2
+#
+# These are identical to the normal firmware except `clear_storage = true`, so
+# they WIPE the on-flash config/bond storage on every boot. Use them once to
+# clean stale storage (e.g. after running another firmware, or when the layout
+# dimensions / storage format changed), then re-flash the normal images:
+#
+#   1. flash *-reset.uf2 to the relevant half/halves
+#   2. power on, let it boot once (this erases the storage sectors)
+#   3. flash the normal cornix-{left,right}.uf2 again
+#
+# Do NOT keep a reset image as your daily firmware: it would erase your Vial
+# customisations and BLE bonds on every power cycle.
+#
+# Implementation notes:
+#  - keyboard.reset.toml is generated from keyboard.toml (single source of
+#    truth; only `clear_storage` is flipped), so the two never drift.
+#  - the reset build uses an isolated CARGO_TARGET_DIR (target/reset) so the
+#    new toml is guaranteed to be re-expanded by the rmk macro and the normal
+#    dist/ artifacts are never touched.
+
+[tasks.gen-reset-toml]
+private = true
+script_runner = "@duckscript"
+script = '''
+content = readfile keyboard.toml
+content = replace ${content} "clear_storage = false" "clear_storage = true"
+writefile keyboard.reset.toml ${content}
+echo generated keyboard.reset.toml (clear_storage = true)
+'''
+
+[tasks.build-reset]
+private = true
+dependencies = ["gen-reset-toml", "flip-link"]
+command = "cargo"
+args = ["build", "--release", "--bin", "central", "--bin", "peripheral"]
+env = { KEYBOARD_TOML_PATH = "${CARGO_MAKE_WORKING_DIRECTORY}/keyboard.reset.toml", CARGO_TARGET_DIR = "target/reset" }
+
+[tasks.hex-left-reset]
+private = true
+dependencies = ["install-llvm-tools", "build-reset"]
+install_crate = { crate_name = "cargo-binutils", binary = "cargo", test_arg = ["objcopy", "--help"] }
+command = "cargo"
+args = ["objcopy", "--release", "--bin", "central", "--", "-O", "ihex", "target/reset/cornix-left-reset.hex"]
+env = { KEYBOARD_TOML_PATH = "${CARGO_MAKE_WORKING_DIRECTORY}/keyboard.reset.toml", CARGO_TARGET_DIR = "target/reset" }
+
+[tasks.uf2-left-reset]
+private = true
+dependencies = ["hex-left-reset", "dist-dir"]
+install_crate = { crate_name = "cargo-hex-to-uf2", binary = "cargo", test_arg = ["hex-to-uf2", "--help"] }
+command = "cargo"
+args = ["hex-to-uf2", "--input-path", "target/reset/cornix-left-reset.hex", "--output-path", "dist/cornix-left-reset.uf2", "--family", "nrf52840"]
+
+[tasks.hex-right-reset]
+private = true
+dependencies = ["install-llvm-tools", "build-reset"]
+install_crate = { crate_name = "cargo-binutils", binary = "cargo", test_arg = ["objcopy", "--help"] }
+command = "cargo"
+args = ["objcopy", "--release", "--bin", "peripheral", "--", "-O", "ihex", "target/reset/cornix-right-reset.hex"]
+env = { KEYBOARD_TOML_PATH = "${CARGO_MAKE_WORKING_DIRECTORY}/keyboard.reset.toml", CARGO_TARGET_DIR = "target/reset" }
+
+[tasks.uf2-right-reset]
+private = true
+dependencies = ["hex-right-reset", "dist-dir"]
+install_crate = { crate_name = "cargo-hex-to-uf2", binary = "cargo", test_arg = ["hex-to-uf2", "--help"] }
+command = "cargo"
+args = ["hex-to-uf2", "--input-path", "target/reset/cornix-right-reset.hex", "--output-path", "dist/cornix-right-reset.uf2", "--family", "nrf52840"]
+
+[tasks.uf2-reset]
+description = "Build one-shot storage-reset images (dist/cornix-{left,right}-reset.uf2)."
+dependencies = ["uf2-left-reset", "uf2-right-reset"]
