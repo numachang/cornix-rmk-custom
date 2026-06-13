@@ -25,6 +25,8 @@ mod keyboard_peripheral {
         let pwm = SequencePwm::new_1ch(p.PWM0, p.P0_13, config).unwrap();
 
         let ext = Output::new(p.P0_24, Level::Low, OutputDrive::Standard);
+        // The right half has its own USB-C; charging is derived from its VBUS in
+        // the indicator (POWER peripheral), so it shows charging when plugged in too.
         Ws2812Indicator::new(pwm, ext, Role::Peripheral)
     }
 }

@@ -32,7 +32,7 @@ use rmk::event::{
     LedIndicatorEvent, PeripheralConnectedEvent,
 };
 use rmk::macros::processor;
-use rmk::types::battery::{BatteryStatus, ChargeState};
+use rmk::types::battery::BatteryStatus;
 use rmk::types::ble::BleState;
 
 /// Which half this indicator runs on. Determines the meaning of the outer pixel
@@ -138,8 +138,10 @@ pub struct Ws2812Indicator {
     ext_power: Output<'static>,
     role: Role,
 
-    // Cached device state.
-    battery: u8,
+    // Cached device state. `battery` is `None` until the first reading so a
+    // not-yet-known level is never mistaken for "full" (>= BATTERY_FULL) or
+    // "low" (<= BATTERY_LOW) — which at boot would flash the wrong colour.
+    battery: Option<u8>,
     charging: bool,
     ble_profile: u8,
     ble_connected: bool,
@@ -161,7 +163,7 @@ impl Ws2812Indicator {
             pwm,
             ext_power,
             role,
-            battery: 100,
+            battery: None,
             charging: false,
             ble_profile: 0,
             ble_connected: false,
@@ -207,8 +209,9 @@ impl Ws2812Indicator {
     fn inner_color(&self) -> Grb {
         // Charging takes priority and lives on the inner pixel.
         if self.charging {
-            if self.battery >= BATTERY_FULL {
-                // Fully charged: green for a few seconds, then dark.
+            if self.battery.is_some_and(|b| b >= BATTERY_FULL) {
+                // Fully charged: green for a few seconds, then dark. Only when
+                // the level is actually known — an unknown level breathes.
                 return if self.frame < FULL_SHOW_FRAMES { GREEN } else { OFF };
             }
             let level = BREATH[(self.frame % BREATH_FRAMES) as usize];
@@ -225,8 +228,8 @@ impl Ws2812Indicator {
                 return BLUE;
             }
         }
-        // Low battery: red double-blink warning.
-        if self.battery <= BATTERY_LOW {
+        // Low battery: red double-blink warning (only on a known level).
+        if self.battery.is_some_and(|b| b <= BATTERY_LOW) {
             return if self.double_blink_on() { RED } else { OFF };
         }
         OFF
@@ -322,23 +325,23 @@ impl Ws2812Indicator {
 
     // --- Event handlers (dispatched by the `#[processor]` macro) ---
 
-    /// Local battery status: carries both the level and the charge state, so it
-    /// keeps the charging flag in sync as well. The `level >= FULL` crossing
-    /// while charging starts the green fully-charged pulse window.
+    /// Local battery status: tracks the level only. The charging flag is driven
+    /// from USB VBUS in `poll`, not from this event's `charge_state` — that
+    /// field stays `Discharging`/`Unknown` here because RMK never publishes a
+    /// real charging transition in this revision. The `level >= FULL` crossing
+    /// while charging starts the fully-charged pulse.
     async fn on_battery_status_event(&mut self, event: BatteryStatusEvent) {
-        if let BatteryStatus::Available { charge_state, level } = event.0 {
-            self.set_charging(charge_state == ChargeState::Charging);
-            if let Some(level) = level {
-                let was_full = self.battery >= BATTERY_FULL;
-                self.battery = level;
-                if self.charging && level >= BATTERY_FULL && !was_full {
-                    self.frame = 0;
-                }
+        if let BatteryStatus::Available { level: Some(level), .. } = event.0 {
+            let was_full = self.battery.is_some_and(|b| b >= BATTERY_FULL);
+            self.battery = Some(level);
+            if self.charging && level >= BATTERY_FULL && !was_full {
+                self.frame = 0;
             }
         }
     }
 
-    /// Immediate charging-line edge (faster than the periodic battery status).
+    /// Immediate charging-line edge. Kept for when RMK wires up its charging
+    /// reader again; today it never fires (VBUS is read in `poll` instead).
     async fn on_charging_state_event(&mut self, event: ChargingStateEvent) {
         self.set_charging(event.charging);
     }
@@ -392,6 +395,16 @@ impl Ws2812Indicator {
 
     /// Timer-driven repaint (called every `poll_interval` ms by the macro).
     async fn poll(&mut self) {
+        // "Charging" = USB power present (VBUS), read straight from the POWER
+        // peripheral's USBREGSTATUS register. This is what the indicator really
+        // wants to show and matches how the LED behaved before: the LED tracks
+        // "plugged in", not the charger IC's STAT line (which goes idle once the
+        // pack is full, leaving the LED dark even while on USB). A bare register
+        // read is passive — it does not touch interrupts or the regulator, so it
+        // is safe alongside MPSL/nrf-sdc. `set_charging` only restarts the
+        // animation on an actual edge, so re-reading every tick is jitter-free.
+        let usb_present = embassy_nrf::pac::POWER.usbregstatus().read().vbusdetect();
+        self.set_charging(usb_present);
         let inner = self.inner_color();
         let outer = self.outer_color();
         self.render(inner, outer).await;

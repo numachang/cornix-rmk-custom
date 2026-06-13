@@ -54,9 +54,12 @@ default_tx_power = 0
 battery_adc_pin = "P0_05"
 adc_divider_measured = 2000
 adc_divider_total = 2806
-# Charger status line (left half only); fed into the charging indicator.
-charge_state.pin = "P0_01"
-charge_state.low_active = true
+# No charger STAT pin is declared. Two reasons: (1) this rmk revision captures
+# `charge_state.pin` into config but never polls it (no ChargingStateReader is
+# ever run), so its events never fire; (2) the charger STAT line proved
+# unreliable on this hardware anyway. The WS2812 indicator instead derives
+# "charging" from USB VBUS (POWER.USBREGSTATUS), so the LED tracks "plugged in"
+# on both halves — see src/ws2812.rs.
 
 [chip.nrf52840]
 dcdc_reg0 = true
@@ -97,12 +100,12 @@ enable_flow_tap = true
 prior_idle_time = "150ms"
 permissive_hold = true
 # Standalone tap/hold time boundary: a key held alone longer than this becomes a
-# hold. Generous (300ms) so taps aren't crushed into holds. This does NOT slow
-# layer/mod access: hold_on_other_press fires the hold the instant another key is
-# pressed, independent of hold_timeout — this only matters when a tap-hold key is
-# held alone with nothing else pressed.
-hold_timeout = "1500ms"
-gap_timeout = "1500ms"
+# hold. This does NOT slow layer/mod access: hold_on_other_press fires the hold
+# the instant another key is pressed, independent of hold_timeout — this only
+# matters when a tap-hold key is held alone with nothing else pressed. Set to
+# 400ms to match the live Vial tuning (faster standalone hold resolution).
+hold_timeout = "400ms"
+gap_timeout = "400ms"
 
 # --- Layout: 8 logical rows (central 0-3, peripheral 4-7) x 7 cols.
 #     Physical layout is the 50-key Cornix grid. ---
@@ -123,7 +126,7 @@ keys = """
 PrintScreen Q W E R T              Y U I O P Minus
 CapsLock A S D F G              H J K L Enter Slash
 LShift Z X C V B AudioMute  MouseBtn3 N M Comma Dot Up International1
-LCtrl LGui LAlt LT(1,Tab) LT(2,Space) MT(Language2,LShift)              MT(Language1,RShift) Backspace MO(1) Left Down Right
+LCtrl LGui LAlt LT(1,Tab) LT(2,Space) MT(Language2,LShift)              MT(Language1,RShift) Backspace RCtrl Left Down Right
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 
@@ -141,9 +144,9 @@ encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 name = "Number"
 keys = """
 No WM(Semicolon,LShift) Kc7 Kc8 Kc9 WM(Quote,LShift)              No No Up No No No
-No Minus Kc4 Kc5 Kc6 Slash              No Left Down Right No No
+No Minus Kc4 Kc5 Kc6 Slash              No Left Down Right Enter No
 No Kc0 Kc1 Kc2 Kc3 WM(Minus,LShift) AudioMute  MouseBtn3 No No No No No No
-No No No No No No              No RShift MO(3) No No No
+No No No No No No              RAlt RShift MO(3) No No No
 """
 encoders = [["AudioVolUp", "AudioVolDown"], ["PageUp", "PageDown"]]
 

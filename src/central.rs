@@ -25,6 +25,8 @@ mod keyboard_central {
         let pwm = SequencePwm::new_1ch(p.PWM0, p.P0_24, config).unwrap();
 
         let ext = Output::new(p.P0_13, Level::Low, OutputDrive::Standard);
+        // Charging state is derived from USB VBUS in the indicator (POWER
+        // peripheral), so no charger-STAT GPIO is wired here.
         Ws2812Indicator::new(pwm, ext, Role::Central)
     }
 }
