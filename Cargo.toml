@@ -6,36 +6,39 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-# Pinned to a specific rmk `main` revision. The 0.8.x releases carry a series of
-# tap-hold / morse bugs that are only fully fixed on the development line (plus
-# split/BLE robustness fixes our setup benefits from), and none of those are in
-# a published release. Bump the rev deliberately, not automatically.
-rmk = { git = "https://github.com/HaoboGu/rmk", rev = "f8db944df47101d03d8cfe01906ec5c3d37eed36", features = [
+# Pinned to our fork of rmk `main` (upstream 6465fedf + one fix) until the fix
+# lands upstream: a never-enumerated USB device (charge-only cable / wall
+# charger) was published as Suspended, which counts as usb_ready() and routed
+# all reports to a dead USB transport instead of BLE. Fork branch:
+# https://github.com/numachang/rmk/tree/fix/never-configured-usb-suspend
+# The 0.8.x releases still lack the tap-hold / morse fix series, so we stay on
+# the development line. Bump the rev deliberately, not automatically.
+rmk = { git = "https://github.com/numachang/rmk", rev = "7b64b68ab26c8ad88a348a272db9d19322cdab62", features = [
     "nrf52840_ble",
     "split",
     "async_matrix",
     "adafruit_bl",
 ] }
-# nrf-sdc / nrf-mpsl must come from the same fork rmk's BLE stack is built
-# against (matching bt-hci 0.8), otherwise the SoftDevice controller types don't
+# nrf-sdc / nrf-mpsl must come from the same source rmk's BLE stack is built
+# against (matching bt-hci 0.9), otherwise the SoftDevice controller types don't
 # line up with trouble-host.
-nrf-sdc = { git = "https://github.com/haobogu/nrf-sdc", rev = "ffe59a7aefaaa145a3d2474602f33387f80dcefa", features = [
+nrf-sdc = { git = "https://github.com/alexmoon/nrf-sdc", rev = "abe49d22ebfc85fae134eb082fbfddf752016a55", features = [
     "defmt",
     "peripheral",
     "central",
     "nrf52840",
 ] }
-nrf-mpsl = { git = "https://github.com/haobogu/nrf-sdc", rev = "ffe59a7aefaaa145a3d2474602f33387f80dcefa", features = [
+nrf-mpsl = { git = "https://github.com/alexmoon/nrf-sdc", rev = "abe49d22ebfc85fae134eb082fbfddf752016a55", features = [
     "defmt",
     "critical-section-impl",
     "nrf52840",
 ] }
-bt-hci = { version = "0.8", features = ["defmt"] }
+bt-hci = { version = "0.9", features = ["defmt"] }
 
 cortex-m = "0.7.7"
 cortex-m-rt = "0.7.5"
 embassy-time = { version = "0.5", features = ["tick-hz-32_768", "defmt", "defmt-timestamp-uptime"] }
-embassy-nrf = { version = "0.10", features = [
+embassy-nrf = { version = "0.11", features = [
     "defmt",
     "nrf52840",
     "time-driver-rtc1",
@@ -54,10 +57,6 @@ defmt = "1.0"
 defmt-rtt = "1.0"
 panic-probe = { version = "1.0", features = ["print-defmt"] }
 static_cell = "2"
-
-rand = { version = "0.8.4", default-features = false }
-rand_core = { version = "0.6" }
-rand_chacha = { version = "0.3", default-features = false }
 
 [build-dependencies]
 xz2 = "0.1.7"
