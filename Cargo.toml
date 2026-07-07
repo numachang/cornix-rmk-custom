@@ -6,14 +6,12 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-# Pinned to our fork of rmk `main` (upstream 6465fedf + one fix) until the fix
-# lands upstream: a never-enumerated USB device (charge-only cable / wall
-# charger) was published as Suspended, which counts as usb_ready() and routed
-# all reports to a dead USB transport instead of BLE. Fork branch:
-# https://github.com/numachang/rmk/tree/fix/never-configured-usb-suspend
-# The 0.8.x releases still lack the tap-hold / morse fix series, so we stay on
-# the development line. Bump the rev deliberately, not automatically.
-rmk = { git = "https://github.com/numachang/rmk", rev = "7b64b68ab26c8ad88a348a272db9d19322cdab62", features = [
+# Pinned to a specific rmk `main` revision (the merge of the charge-only USB
+# fix, HaoboGu/rmk#911 — a never-enumerated USB device no longer counts as a
+# routable transport, so BLE keeps working on chargers / power banks). The
+# 0.8.x releases still lack the tap-hold / morse fix series, so we stay on the
+# development line. Bump the rev deliberately, not automatically.
+rmk = { git = "https://github.com/HaoboGu/rmk", rev = "00a42c35cc8b60e1b331c4c1226a906d9e81b6d4", features = [
     "nrf52840_ble",
     "split",
     "async_matrix",
